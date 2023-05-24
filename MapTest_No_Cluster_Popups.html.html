@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Display HTML clusters with custom properties</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+.marker {
+    cursor: pointer;
+    border: none;
+}
+
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+
+mapboxgl.accessToken = 'pk.eyJ1IjoiYm9yZ3N0ZWluIiwiYSI6ImNrbWZmMGdsZzM0b3QybnAxYzgyeXl0aW0ifQ.TidgWkf_hwXD2CccezoLLw';
+var map = new mapboxgl.Map({
+    container: 'map', 
+    style: 'mapbox://styles/borgstein/clhiy9pq901ii01pg2m9xc24y',
+    center: [-1.3, 51.77], 
+    zoom: 12.5 
+});
+
+//----------------VARIABLES----------------------------------
+// Mapping of BMI values to colors
+const biodiversityColors = {
+  'Vascular plants': '#008000',
+  'Mammals': '#FF0000',
+  'Insects': '#FFFF00',
+  'Birds': '#00FFFF',
+  'Arachnids': '#800080',
+  'Non-Vascular plants': '#00FF00',
+  'Molluscs': '#0000FF',
+  'Annelids': '#FFA500',
+  'Crustaceans': '#000080',
+  'Fungi': '#FF00FF',
+  'Amphibians': '#800000',
+  'Myriapods': '#808080',
+  'Entognatha': '#008080',
+  'Nematodes': '#800080',
+  'Lichen': '#808080',
+  'Reptiles': '#FF4500'
+};
+
+///----------------LOAD MAP BITS-----------------------------
+map.on('load', function () {
+    map.addSource('estates', {
+        type: 'geojson',
+        data: 'estates_map.json',
+        cluster: true,
+        clusterMaxZoom: 16, 
+        clusterRadius: 10 
+    });
+
+    map.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'estates',
+    filter: ['has', 'point_count']
+});
+    map.addLayer({
+    id: 'individual-points',
+    type: 'circle',
+    source: 'estates',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+        'circle-color': [
+            'match',
+            ['get', 'BMI'],
+            'Vascular plants', '#008000',
+            'Mammals', '#FF0000',
+            'Insects', '#FFFF00',
+            'Birds', '#00FFFF',
+            'Arachnids', '#800080',
+            'Non-Vascular plants', '#00FF00',
+            'Molluscs', '#0000FF',
+            'Annelids', '#FFA500',
+            'Crustaceans', '#000080',
+            'Fungi', '#FF00FF',
+            'Amphibians', '#800000',
+            'Myriapods', '#808080',
+            'Entognatha', '#008080',
+            'Nematodes', '#800080',
+            'Lichen', '#808080',
+            'Reptiles', '#FF4500',
+            '#000000' // default color if the BMI is not listed
+        ],
+        'circle-radius': 12
+    }
+    });
+
+    map.on('data', function(e) {
+    if (e.dataType === 'source' && e.sourceId === 'estates') {
+        // Remove existing custom markers
+        if (typeof map.customMarkers !== 'undefined') {
+            for (let marker of map.customMarkers) {
+                marker.remove();
+            }
+        }
+
+        map.customMarkers = [];
+
+        // Get all clusters
+        const features = map.querySourceFeatures('estates', { sourceLayer: 'clusters' });
+        
+        for (let feature of features) {
+            if (!feature.properties.cluster) continue;
+
+            // Get data for the cluster
+            const clusterId = feature.properties.cluster_id;
+            const pointCount = feature.properties.point_count;
+            const clusterSource = map.getSource('estates');
+            clusterSource.getClusterLeaves(clusterId, pointCount, 0, function(err, leaves) {
+                if (err) {
+                    console.error('Error while getting cluster leaves:', err);
+                    return;
+                }
+
+                // Count categories in the cluster
+                let categoryCounts = {};
+                for (let leaf of leaves) {
+                    let category = leaf.properties['BMI'];
+                    if (categoryCounts[category]) {
+                        categoryCounts[category]++;
+                    } else {
+                        categoryCounts[category] = 1;
+                    }
+                }
+
+                // Prepare canvas for the donut chart
+                let canvas = document.createElement('canvas');
+                canvas.width = 50; // adjust size to your needs
+                canvas.height = 50; // adjust size to your needs
+                let ctx = canvas.getContext('2d');
+
+                // Draw the donut chart
+                drawDonutChart(ctx, categoryCounts, pointCount);
+
+                // Create a custom HTML marker using the canvas
+                let el = document.createElement('div');
+                el.className = 'marker';
+                el.style.width = `${ctx.canvas.width}px`;
+                el.style.height = `${ctx.canvas.height}px`;
+                el.appendChild(canvas);
+
+                // Add the marker to the map
+                let coords = leaves[0].geometry.coordinates; // coordinates of the first point in the cluster
+                let marker = new mapboxgl.Marker(el)
+                    .setLngLat(coords)
+                    .addTo(map);
+
+                // Keep track of the marker to remove it later
+                map.customMarkers.push(marker);
+            });
+        }
+    }
+});
+
+    map.on('click', 'individual-points', function (e) {
+        var coordinates = e.features[0].geometry.coordinates.slice();
+        var description = JSON.stringify(e.features[0].properties, null, 2);
+
+        // Ensure that if the map is zoomed out such that multiple
+        // copies of the feature are visible, the popup appears
+        // over the copy being pointed to.
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+            }
+
+        new mapboxgl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`<pre>${description}</pre>`)
+            .addTo(map);
+            });
+    });
+
+    map.on('mouseenter', 'individual-points', function () {
+    map.getCanvas().style.cursor = 'pointer';
+    });
+
+    map.on('mouseleave', 'individual-points', function () {
+    map.getCanvas().style.cursor = '';
+    });
+
+    map.on('mousemove', 'clusters', function(e) {
+    var properties = e.features[0].properties;
+    console.log(properties.point_count);
+    });
+
+/////////////////////////////////////FUNCTIONS/////////////////////////////
+function drawDonutChart(ctx, categoryCounts, pointCount) {
+    const canvasSize = Math.max(50, pointCount); // Adjust the size based on point_count
+    ctx.canvas.width = canvasSize;
+    ctx.canvas.height = canvasSize;
+
+    const cx = ctx.canvas.width / 2;
+    const cy = ctx.canvas.height / 2;
+    const radius = Math.min(cx, cy) * 0.8;
+    const total = Object.values(categoryCounts).reduce((a, b) => a + b, 0);
+    let startAngle = -Math.PI / 2;
+
+    // Get category keys and colors
+    let keys = Object.keys(categoryCounts);
+    let colors = {
+        'Vascular plants': '#008000',
+        'Mammals': '#FF0000',
+        'Insects': '#FFFF00',
+        'Birds': '#00FFFF',
+        'Arachnids': '#800080',
+        'Non-Vascular plants': '#00FF00',
+        'Molluscs': '#0000FF',
+        'Annelids': '#FFA500',
+        'Crustaceans': '#000080',
+        'Fungi': '#FF00FF',
+        'Amphibians': '#800000',
+        'Myriapods': '#808080',
+        'Entognatha': '#008080',
+        'Nematodes': '#800080',
+        'Lichen': '#808080',
+        'Reptiles': '#FF4500'
+    };
+
+    // Draw arcs
+    for (let i = 0; i < keys.length; i++) {
+        const proportion = categoryCounts[keys[i]] / total;
+        const endAngle = startAngle + proportion * 2 * Math.PI;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, startAngle, endAngle);
+        ctx.lineTo(cx, cy);
+        ctx.fillStyle = colors[keys[i]];
+        ctx.fill();
+
+        startAngle = endAngle;
+    }
+
+    // Draw inner circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    // Add text in the middle
+    ctx.fillStyle = '#000000';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(pointCount, cx, cy);
+}
+
+</script>
+
+</body>
+</html>
