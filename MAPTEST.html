@@ -8,7 +8,7 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
 <style>
 body { margin: 0; padding: 0; }
-#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 0;}
 
 .marker {
     cursor: pointer;
@@ -20,9 +20,8 @@ body { margin: 0; padding: 0; }
 .popup-header {
   background-color: #007bff;
   color: white;
-  font-family: Arial, sans-serif;
+  font-family: Open Sans, sans-serif;
   font-size: 18px;
-  font-weight: bold;
   padding: 10px;
   margin-bottom: 10px;
 }
@@ -32,7 +31,7 @@ body { margin: 0; padding: 0; }
   max-width: 300px;
   border-radius: 8px;
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
-  font-family: Arial, sans-serif;
+  font-family: Helvetica Neue, sans-serif;
 }
 
 /* Styling for the popup content */
@@ -50,7 +49,7 @@ body { margin: 0; padding: 0; }
   max-width: 300px;
   border-radius: 8px;
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
-  font-family: Arial, sans-serif;
+  font-family: Helvetica Neue, sans-serif;
   padding: 10px;
 }
 
@@ -61,24 +60,102 @@ body { margin: 0; padding: 0; }
 
 /* Styling for the individual-points popup banner/header */
 .individual-popup-header {
-  font-family: Arial, sans-serif;
+  font-family: Helvetica Neue, sans-serif;
   font-size: 18px;
   font-weight: bold;
   padding: 10px;
   margin-bottom: 10px;
 }
 
+/* Legend Styling */
+.legend {
+  width: 100px; /* Set the desired width when hidden */
+  cursor: pointer;
+  position: absolute;
+  z-index: 1;
+  font-size: 20px;
+  cursor: pointer;
+  background-color: #0A5640;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  top: 5px;
+  right:5px; 
+  border-radius: 3px;
+  font-family: 'Open Sans', sans-serif;
+  transition: width 0.3s ease; /* Add transition for smooth width change */
+}
+
+.legend.expand {
+  width: 160px; /* Set the desired width when expanded */
+}
+
+.legend .legend-items li {
+  list-style-type: none;
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 13px; /* Set the desired font size for list items */
+}
+
+.legend-items {
+  display: none; /* Initially hide the legend items */
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.legend.expand .legend-items {
+  display: block;
+  max-height: 440px; /* Set the desired max height when expanded */
+}
+
+.legend-items li {
+  list-style-type: none; /* Remove bullet points */
+  display: flex; /* Use flexbox to align color and text */
+  align-items: center; /* Center vertically */
+  margin-bottom: 5px;
+}
+
+.color-box {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  border: 1px solid #ccc;
+}
 </style>
 </head>
-<body>y
-<div id="map"></div>
+<body>
 
+<div id="map"></div>
+<div class="legend" id="legend">
+  <div class="legend-header" onclick="toggleLegend()">Legend</div>
+  <ul class="legend-items" id="legendItems">
+    <li><span class="color-box" style="background-color: #59a14f;"></span>Vascular plants</li>
+    <li><span class="color-box" style="background-color: #9c755f;"></span>Mammals</li>
+    <li><span class="color-box" style="background-color: #edc948;"></span>Insects</li>
+    <li><span class="color-box" style="background-color: #aaaaaa;"></span>Birds</li>
+    <li><span class="color-box" style="background-color: #e15759;"></span>Arachnids</li>
+    <li><span class="color-box" style="background-color: #b07aa1;"></span>Non-Vascular plants</li>
+    <li><span class="color-box" style="background-color: #76b7b2;"></span>Molluscs</li>
+    <li><span class="color-box" style="background-color: #ff9da7;"></span>Annelids</li>
+    <li><span class="color-box" style="background-color: #f28e2b;"></span>Crustaceans</li>
+    <li><span class="color-box" style="background-color: #b07ab2;"></span>Fungi</li>
+    <li><span class="color-box" style="background-color: #76b7a1;"></span>Amphibians</li>
+    <li><span class="color-box" style="background-color: #009da7;"></span>Myriapods</li>
+    <li><span class="color-box" style="background-color: #f28e2b;"></span>Entognatha</li>
+    <li><span class="color-box" style="background-color: #73ee00;"></span>Nematodes</li>
+    <li><span class="color-box" style="background-color: #f00f60;"></span>Lichen</li>
+    <li><span class="color-box" style="background-color: #ddbb72;"></span>Reptiles</li>
+  </ul>
+</div>
 <script>
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiYm9yZ3N0ZWluIiwiYSI6ImNrbWZmMGdsZzM0b3QybnAxYzgyeXl0aW0ifQ.TidgWkf_hwXD2CccezoLLw';
 var map = new mapboxgl.Map({
     container: 'map', 
-    style: 'mapbox://styles/borgstein/clhiy9pq901ii01pg2m9xc24y',
+    style: 'mapbox://styles/mapbox/streets-v12',
     center: [-1.3, 51.77], 
     zoom: 12.5 
 });
@@ -86,22 +163,22 @@ var map = new mapboxgl.Map({
 //----------------VARIABLES----------------------------------
 // Mapping of BMI values to colors
 const biodiversityColors = {
-  'Vascular plants': '#008000',
-  'Mammals': '#FF0000',
-  'Insects': '#FFFF00',
-  'Birds': '#00FFFF',
-  'Arachnids': '#800080',
-  'Non-Vascular plants': '#00FF00',
-  'Molluscs': '#0000FF',
-  'Annelids': '#FFA500',
-  'Crustaceans': '#000080',
-  'Fungi': '#FF00FF',
-  'Amphibians': '#800000',
-  'Myriapods': '#808080',
-  'Entognatha': '#008080',
-  'Nematodes': '#800080',
-  'Lichen': '#808080',
-  'Reptiles': '#FF4500'
+  'Vascular plants': '#59a14f',
+  'Mammals': '#9c755f',
+  'Insects': '#edc948',
+  'Birds': '#aaaaaa',
+  'Arachnids': '#e15759',
+  'Non-Vascular plants': '#b07aa1',
+  'Molluscs': '#76b7b2',
+  'Annelids': '#ff9da7',
+  'Crustaceans': '#f28e2b',
+  'Fungi': '#b07ab2',
+  'Amphibians': '#76b7a1',
+  'Myriapods': '#009da7',
+  'Entognatha': '#f28e2b',
+  'Nematodes': '#73ee00',
+  'Lichen': '#f00f60',
+  'Reptiles': '#ddbb72'
 };
 
 //global page variables
@@ -131,7 +208,7 @@ var filterOptions = {
 map.on('load', function () {
     map.addSource('estates', {
         type: 'geojson',
-        data: 'estates_map.json',
+        data: 'estates_map_new.json',
         cluster: true,
         clusterMaxZoom: 16, 
         clusterRadius: 10 
@@ -152,22 +229,22 @@ map.on('load', function () {
         'circle-color': [
             'match',
             ['get', 'BMI'],
-            'Vascular plants', '#008000',
-            'Mammals', '#FF0000',
-            'Insects', '#FFFF00',
-            'Birds', '#00FFFF',
-            'Arachnids', '#800080',
-            'Non-Vascular plants', '#00FF00',
-            'Molluscs', '#0000FF',
-            'Annelids', '#FFA500',
-            'Crustaceans', '#000080',
-            'Fungi', '#FF00FF',
-            'Amphibians', '#800000',
-            'Myriapods', '#808080',
-            'Entognatha', '#008080',
-            'Nematodes', '#800080',
-            'Lichen', '#808080',
-            'Reptiles', '#FF4500',
+            'Vascular plants', '#59a14f',
+            'Mammals', '#9c755f',
+            'Insects', '#edc948',
+            'Birds', '#ffffff',
+            'Arachnids', '#e15759',
+            'Non-Vascular plants', '#b07aa1',
+            'Molluscs', '#76b7b2',
+            'Annelids', '#ff9da7',
+            'Crustaceans', '#f28e2b',
+            'Fungi', '#b07ab2',
+            'Amphibians', '#76b7a1',
+            'Myriapods', '#009da7',
+            'Entognatha', '#f28e2b',
+            'Nematodes', '#73ee00',
+            'Lichen', '#f00f60',
+            'Reptiles', '#ddbb72',
             '#000000' // default color if the BMI is not listed
         ],
         'circle-radius': 12
@@ -329,25 +406,7 @@ function drawDonutChart(ctx, categoryCounts, pointCount) {
 
     // Get category keys and colors
     let keys = Object.keys(categoryCounts);
-    let colors = {
-        'Vascular plants': '#008000',
-        'Mammals': '#FF0000',
-        'Insects': '#FFFF00',
-        'Birds': '#00FFFF',
-        'Arachnids': '#800080',
-        'Non-Vascular plants': '#00FF00',
-        'Molluscs': '#0000FF',
-        'Annelids': '#FFA500',
-        'Crustaceans': '#000080',
-        'Fungi': '#FF00FF',
-        'Amphibians': '#800000',
-        'Myriapods': '#808080',
-        'Entognatha': '#008080',
-        'Nematodes': '#800080',
-        'Lichen': '#808080',
-        'Reptiles': '#FF4500'
-    };
-
+    
     // Draw arcs
     for (let i = 0; i < keys.length; i++) {
         const proportion = categoryCounts[keys[i]] / total;
@@ -356,7 +415,7 @@ function drawDonutChart(ctx, categoryCounts, pointCount) {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, startAngle, endAngle);
         ctx.lineTo(cx, cy);
-        ctx.fillStyle = colors[keys[i]];
+        ctx.fillStyle = biodiversityColors[keys[i]];
         ctx.fill();
 
         startAngle = endAngle;
@@ -370,7 +429,7 @@ function drawDonutChart(ctx, categoryCounts, pointCount) {
 
     // Add text in the middle
     ctx.fillStyle = '#000000';
-    ctx.font = '14px Arial';
+    ctx.font = '14px Open Sans';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(pointCount, cx, cy);
@@ -439,26 +498,7 @@ function buildFeatureContent(feature, pageIndex, totalPages) {
 
 function getColorByBMI(BMI) {
   // Define the colors based on BMI values
-  const colors = {
-    'Vascular plants': '#008000',
-    'Mammals': '#FF0000',
-    'Insects': '#FFFF00',
-    'Birds': '#00FFFF',
-    'Arachnids': '#800080',
-    'Non-Vascular plants': '#00FF00',
-    'Molluscs': '#0000FF',
-    'Annelids': '#FFA500',
-    'Crustaceans': '#000080',
-    'Fungi': '#FF00FF',
-    'Amphibians': '#800000',
-    'Myriapods': '#808080',
-    'Entognatha': '#008080',
-    'Nematodes': '#800080',
-    'Lichen': '#808080',
-    'Reptiles': '#FF4500'
-  };
-
-  return colors[BMI];
+  return biodiversityColors[BMI];
 }
 
 function isBannerColorLight(color) {
@@ -530,6 +570,18 @@ function showPopup(leaves, pageIndex, lngLat) {
     const nextIndex = (pageIndex + 1) % leaves.length;
     showPopup(leaves, nextIndex, lngLat);
   });
+}
+function toggleLegend() {
+  const legendItems = document.getElementById('legendItems');
+  const legend = document.getElementById('legend');
+
+  if (legendItems.style.display === 'none') {
+    legendItems.style.display = 'block';
+    legend.classList.add('expand');
+  } else {
+    legendItems.style.display = 'none';
+    legend.classList.remove('expand');
+  }
 }
 
 //FILTERS FILTERS FILTERS FILTERS FILTERS
